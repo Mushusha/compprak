@@ -7,26 +7,20 @@ from scipy.integrate import solve_ivp
 L1 = 1
 L2 = 2
 g = 9.81
-w1 = np.sqrt(g/L1)
-w2 = np.sqrt(g/L2)
 
-phi1_0 = np.radians(60.0)
-phi2_0 = np.radians(0.0)
+phi1_0_base = np.radians(60.0)
+phi2_0_variations = np.radians(np.linspace(0, 180, 15))
 psi1_0 = 0.0
 psi2_0 = 0.0
 
-time = 30.0
-nsteps = 200
+time = 25.0
+nsteps = 300
 dt = time / nsteps
 t = np.linspace(0, time, nsteps + 1)
 
-phi1_arr = np.zeros(nsteps + 1)
-phi2_arr = np.zeros(nsteps + 1)
-psi1_arr = np.zeros(nsteps + 1)
-psi2_arr = np.zeros(nsteps + 1)
-
-phi1_arr[0], phi2_arr[0] = phi1_0, phi2_0
-psi1_arr[0], psi2_arr[0] = psi1_0, psi2_0
+all_phi1 = []
+all_phi2 = []
+all_trajectories = []
 
 def equations_of_motion(phi1, phi2, psi1, psi2):
     psi1_dot = -2.0 * g * phi1 / L1 + g * phi2 / L1
@@ -61,44 +55,6 @@ def rk4_step(phi1, phi2, psi1, psi2, dt):
     
     return phi1_new, phi2_new, psi1_new, psi2_new
 
-phi1, phi2, psi1, psi2 = phi1_0, phi2_0, psi1_0, psi2_0
-
-for i in range(nsteps):
-    phi1, phi2, psi1, psi2 = rk4_step(phi1, phi2, psi1, psi2, dt)
-    phi1_arr[i + 1] = phi1
-    phi2_arr[i + 1] = phi2
-    psi1_arr[i + 1] = psi1
-    psi2_arr[i + 1] = psi2
-
-def f(t, x):
-    phi1, phi2, psi1, psi2 = x
-    return np.array([psi1, psi2, -2.0*g*phi1/L1 + g*phi2/L1, -2.0*g*phi2/L2 + 2.0*g*phi1/L2])
-
-sol_rk45_result = solve_ivp(f, [0, time], [phi1_0, phi2_0, psi1_0, psi2_0], 
-                           method='RK45', t_eval=t, rtol=1e-6, atol=1e-8)
-sol_rk45 = sol_rk45_result.y.T
-
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-
-ax1.plot(t, np.degrees(phi1_arr), 'r-', label='φ1 (первый маятник)')
-ax1.plot(t, np.degrees(phi2_arr), 'b-', label='φ2 (второй маятник)')
-ax1.set_xlabel('Время (с)')
-ax1.set_ylabel('Угол (градусы)')
-ax1.set_title('Изменение углов двойного маятника (RK4)')
-ax1.legend()
-ax1.grid(True, alpha=0.3)
-
-ax2.plot(t, np.degrees(sol_rk45[:, 0]), 'r-', label='φ1 (первый маятник)')
-ax2.plot(t, np.degrees(sol_rk45[:, 1]), 'b-', label='φ2 (второй маятник)')
-ax2.set_xlabel('Время (с)')
-ax2.set_ylabel('Угол (градусы)')
-ax2.set_title('Изменение углов двойного маятника (RK45)')
-ax2.legend()
-ax2.grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.show()
-
 def get_cartesian_coordinates(phi1, phi2):
     x1 = L1 * np.sin(phi1)
     y1 = -L1 * np.cos(phi1)
@@ -106,55 +62,131 @@ def get_cartesian_coordinates(phi1, phi2):
     y2 = y1 - L2 * np.cos(phi2)
     return x1, y1, x2, y2
 
-fig = plt.figure(figsize=(10, 8))
+for phi2_0 in phi2_0_variations:
+    phi1_arr = np.zeros(nsteps + 1)
+    phi2_arr = np.zeros(nsteps + 1)
+    trajectories = np.zeros((nsteps + 1, 4))
+    
+    phi1_arr[0], phi2_arr[0] = phi1_0_base, phi2_0
+    trajectories[0] = get_cartesian_coordinates(phi1_0_base, phi2_0)
+    
+    phi1, phi2, psi1, psi2 = phi1_0_base, phi2_0, psi1_0, psi2_0
+    
+    for i in range(nsteps):
+        phi1, phi2, psi1, psi2 = rk4_step(phi1, phi2, psi1, psi2, dt)
+        phi1_arr[i + 1] = phi1
+        phi2_arr[i + 1] = phi2
+        trajectories[i + 1] = get_cartesian_coordinates(phi1, phi2)
+    
+    all_phi1.append(phi1_arr)
+    all_phi2.append(phi2_arr)
+    all_trajectories.append(trajectories)
+
+fig = plt.figure(figsize=(12, 10))
 ax = plt.subplot(111)
-ax.set_xlim(-(L1 + L2) * 1.2, (L1 + L2) * 1.2)
-ax.set_ylim(-(L1 + L2) * 1.2, (L1 + L2) * 1.2)
+ax.set_xlim(-(L1 + L2) * 1.3, (L1 + L2) * 1.3)
+ax.set_ylim(-(L1 + L2) * 1.3, (L1 + L2) * 1.3)
 ax.set_aspect('equal')
 ax.grid(True, alpha=0.3)
-ax.set_title('Движение двойного маятника')
+ax.set_title('Двойные маятники с разными начальными условиями', fontsize=14)
 ax.axhline(y=0, color='gray', linestyle='-', linewidth=2, alpha=0.5)
-ax.plot(0, 0, 'ko', markersize=6)
+ax.plot(0, 0, 'ko', markersize=8)
 
-line, = ax.plot([], [], 'o-', lw=2, markersize=8)
-trail1, = ax.plot([], [], 'r-', alpha=0.5, linewidth=1)
-trail2, = ax.plot([], [], 'b-', alpha=0.5, linewidth=1)
-time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
+colors = plt.cm.plasma(np.linspace(0, 1, len(phi2_0_variations)))
+lines = []
+trails = []
+time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes, fontsize=12,
+                   bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
 
-trail1_x, trail1_y = [], []
-trail2_x, trail2_y = [], []
+legend_text = ax.text(0.02, 0.02, '', transform=ax.transAxes, fontsize=10,
+                     bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+
+for i, color in enumerate(colors):
+    line, = ax.plot([], [], 'o-', lw=1.5, markersize=4, color=color, alpha=0.8)
+    lines.append(line)
+    
+    trail, = ax.plot([], [], '-', lw=1, color=color, alpha=0.6)
+    trails.append(trail)
+
+trails_data = [[] for _ in range(len(phi2_0_variations))]
 
 def init_anim():
-    line.set_data([], [])
-    trail1.set_data([], [])
-    trail2.set_data([], [])
+    for line, trail in zip(lines, trails):
+        line.set_data([], [])
+        trail.set_data([], [])
     time_text.set_text('')
-    return line, trail1, trail2, time_text
+    
+    legend_info = "Начальные углы φ:\n"
+    for i in range(0, len(phi2_0_variations), 3):
+        angles = [f"{np.degrees(phi2_0_variations[j]):.0f}°" 
+                 for j in range(i, min(i+3, len(phi2_0_variations)))]
+        legend_info += "  " + ", ".join(angles) + "\n"
+    legend_text.set_text(legend_info)
+    
+    return lines + trails + [time_text, legend_text]
 
 def animate(i):
-    x1, y1, x2, y2 = get_cartesian_coordinates(phi1_arr[i], phi2_arr[i])
-    
-    line.set_data([0, x1, x2], [0, y1, y2])
-    
-    trail1_x.append(x1)
-    trail1_y.append(y1)
-    if len(trail1_x) > 100:
-        trail1_x.pop(0)
-        trail1_y.pop(0)
-    trail1.set_data(trail1_x, trail1_y)
-    
-    trail2_x.append(x2)
-    trail2_y.append(y2)
-    if len(trail2_x) > 100:
-        trail2_x.pop(0)
-        trail2_y.pop(0)
-    trail2.set_data(trail2_x, trail2_y)
-    
-    time_text.set_text(f'Время = {t[i]:.2f} с')
-    
-    return line, trail1, trail2, time_text
+    for idx, (phi1_arr, phi2_arr, trajectories) in enumerate(zip(all_phi1, all_phi2, all_trajectories)):
+        x1, y1, x2, y2 = trajectories[i]
+        
+        lines[idx].set_data([0, x1, x2], [0, y1, y2])
+        
+        if len(trails_data[idx]) < 80:
+            trails_data[idx].append((x2, y2))
+        else:
+            trails_data[idx].pop(0)
+            trails_data[idx].append((x2, y2))
+        
+        if trails_data[idx]:
+            trail_x, trail_y = zip(*trails_data[idx])
+            trails[idx].set_data(trail_x, trail_y)
+        
+    return lines + trails + [legend_text]
 
 ani = anim.FuncAnimation(fig, animate, frames=nsteps, init_func=init_anim,
-                        interval=dt*1000, blit=True, repeat=True, repeat_delay=1000)
+                        interval=dt*800, blit=True, repeat=True, repeat_delay=2000)
 
+plt.tight_layout()
+plt.show()
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
+
+for i, (phi1_arr, phi2_arr) in enumerate(zip(all_phi1, all_phi2)):
+    angle_deg = np.degrees(phi2_0_variations[i])
+    ax1.plot(t, np.degrees(phi1_arr), color=colors[i], alpha=0.6, linewidth=1)
+    ax2.plot(t, np.degrees(phi2_arr), color=colors[i], alpha=0.6, linewidth=1)
+
+ax1.set_xlabel('Время (с)')
+ax1.set_ylabel('Угол φ₁ (градусы)')
+ax1.set_title('Углы первого маятника для разных начальных условий')
+ax1.grid(True, alpha=0.3)
+
+ax2.set_xlabel('Время (с)')
+ax2.set_ylabel('Угол φ₂ (градусы)')
+ax2.set_title('Углы второго маятника для разных начальных условий')
+ax2.grid(True, alpha=0.3)
+
+sm = plt.cm.ScalarMappable(cmap=plt.cm.plasma, 
+                          norm=plt.Normalize(0, 180))
+sm.set_array([])
+
+plt.tight_layout()
+plt.show()
+
+fig, ax = plt.subplots(figsize=(12, 6))
+
+reference_idx = 0
+for i in range(1, len(all_phi2)):
+    divergence = np.sqrt((all_trajectories[i][:, 2] - all_trajectories[reference_idx][:, 2])**2 + 
+                        (all_trajectories[i][:, 3] - all_trajectories[reference_idx][:, 3])**2)
+    angle_deg = np.degrees(phi2_0_variations[i])
+    ax.plot(t, divergence, color=colors[i], alpha=0.7, 
+            label=f'φ₂₀ = {angle_deg:.0f}°')
+
+ax.set_xlabel('Время (с)')
+ax.set_ylabel('Расстояние между траекториями')
+ax.set_title('Расхождение траекторий маятника')
+ax.set_yscale('log')
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
 plt.show()
